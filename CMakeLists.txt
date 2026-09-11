@@ -195,13 +195,15 @@ ENDIF()
 # (e.g. building on Linux) doesn't guarantee that and fails outright. Patch them in place at
 # configure time so a plain `git submodule update` is enough to get a working build; this is
 # a no-op once upstream fixes them or the pinned commit moves past the fix.
-function(noggit_patch_missing_include relative_path include_line)
+# anchor_line must already be an exact, unique line in the file (typically "#pragma once"
+# for a header, or its first #include for a .cpp, which has no #pragma once to anchor on).
+function(noggit_patch_missing_include relative_path anchor_line include_line)
   set(_target "${CMAKE_SOURCE_DIR}/${relative_path}")
   if(EXISTS "${_target}")
     file(READ "${_target}" _contents)
     if(NOT _contents MATCHES "${include_line}")
       message(STATUS "Patching missing ${include_line} in ${relative_path}")
-      string(REPLACE "#pragma once" "#pragma once\n${include_line}" _contents "${_contents}")
+      string(REPLACE "${anchor_line}" "${anchor_line}\n${include_line}" _contents "${_contents}")
       file(WRITE "${_target}" "${_contents}")
     endif()
   endif()
@@ -211,6 +213,7 @@ endfunction()
 # fails with "no matching function for call to 'find(...)'" without it.
 noggit_patch_missing_include(
   "src/external/blizzard-database-library/include/extensions/VectorExtensions.h"
+  "#pragma once"
   "#include <algorithm>"
 )
 # WDBCTableReader.h: uses uint32_t (member fields, a return type, casts) without <cstdint>;
@@ -219,7 +222,54 @@ noggit_patch_missing_include(
 # malformed declarations this produces get used later in the same header.
 noggit_patch_missing_include(
   "src/external/blizzard-database-library/include/readers/wdbc/WDBCTableReader.h"
+  "#pragma once"
   "#include <cstdint>"
+)
+# The rest of these are the same story (uint32_t/memcpy-family/std::find used without the
+# header that declares them, only compiling by accident on toolchains where some unrelated
+# header happens to drag it in transitively) confirmed against a real GCC/CachyOS build that
+# our own sandbox's GCC didn't reproduce for two of them -- transitive availability of these
+# headers isn't something any one toolchain can be trusted to prove or disprove, so treat the
+# missing include itself as the bug regardless of whether a given compiler currently tolerates it.
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/readers/wdc5/WDC5TableReader.cpp"
+  "#include <readers/wdc5/WDC5TableReader.h>"
+  "#include <cstdint>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/readers/wdc5/WDC5TableReader.cpp"
+  "#include <readers/wdc5/WDC5TableReader.h>"
+  "#include <cstring>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/stream/BitReader.cpp"
+  "#include <stream/BitReader.h>"
+  "#include <cstdint>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/stream/BitReader.cpp"
+  "#include <stream/BitReader.h>"
+  "#include <cstring>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/readers/wdbc/WDBCTableReader.cpp"
+  "#include <extensions/MemoryExtensions.h>"
+  "#include <cstring>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/readers/wdc3/WDC3TableReader.cpp"
+  "#include <readers/wdc3/WDC3TableReader.h>"
+  "#include <cstring>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/include/extensions/MemoryExtensions.h"
+  "#pragma once"
+  "#include <cstring>"
+)
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/src/DatabaseDefinition.cpp"
+  "#include <DatabaseDefinition.h>"
+  "#include <algorithm>"
 )
 
 collect_files(png_blp_sources src/external/PNG2BLP TRUE "*.c;*.cpp;" "")
