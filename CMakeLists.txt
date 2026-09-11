@@ -189,6 +189,25 @@ ELSE()
   collect_files(noggit_root_sources src/noggit TRUE "*.cpp" "")
 ENDIF()
 
+# The blizzard-database-library submodule (gitlab.com/T1ti/blizzard-database-library,
+# no push access from this repo) is missing #include <algorithm> in VectorExtensions.h,
+# which Vector::IndexOf() needs for std::find/std::distance. This only compiles on MSVC
+# because <vector> happens to drag in <algorithm> transitively there; GCC/libstdc++
+# (e.g. building on Linux) fails with "no matching function for call to 'find(...)'".
+# Patch it in place at configure time so a plain `git submodule update` is enough to get
+# a working build; this is a no-op once upstream fixes it or the pinned commit moves past it.
+set(_bdl_vecext "${CMAKE_SOURCE_DIR}/src/external/blizzard-database-library/include/extensions/VectorExtensions.h")
+if(EXISTS "${_bdl_vecext}")
+  file(READ "${_bdl_vecext}" _bdl_vecext_contents)
+  if(NOT _bdl_vecext_contents MATCHES "#include <algorithm>")
+    message(STATUS "Patching missing #include <algorithm> in blizzard-database-library/VectorExtensions.h")
+    string(REPLACE "#pragma once" "#pragma once\n#include <algorithm>" _bdl_vecext_contents "${_bdl_vecext_contents}")
+    file(WRITE "${_bdl_vecext}" "${_bdl_vecext_contents}")
+  endif()
+  unset(_bdl_vecext_contents)
+endif()
+unset(_bdl_vecext)
+
 collect_files(png_blp_sources src/external/PNG2BLP TRUE "*.c;*.cpp;" "")
 collect_files(imguizmo_sources src/external/imguizmo FALSE "*.c;*.cpp;" "")
 collect_files(imguipiemenu_sources src/external/imguipiemenu FALSE "*.c;*.cpp;" "")
@@ -347,69 +366,135 @@ TARGET_LINK_LIBRARIES (noggit
 include(ExternalProject)
 
 
-# Fetch qsqlmysql.dll plugin based on Qt version #####
-execute_process(
-    COMMAND ${Qt5Core_DIR}/../../../bin/qmake -query QT_VERSION
-    OUTPUT_VARIABLE QT_FULL_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-message(STATUS "Qt full version: ${QT_FULL_VERSION}")
-
-# prebuilds available at : https://github.com/thecodemonkey86/qt_mysql_driver/releases
-# get direct download links
-if(WIN32)
-  if(MSVC)
-        set(QMYSQL_PREBUILT_DRIVER_URL
-            "https://github.com/thecodemonkey86/qt_mysql_driver/files/5575770/qsqlmysql.dll_Qt_SQL_driver_${QT_FULL_VERSION}_MSVC2019_64-bit.zip"
-        )
-    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU") # MinGW
-        set(QMYSQL_PREBUILT_DRIVER_URL
-            "https://github.com/thecodemonkey86/qt_mysql_driver/files/5575769/qsqlmysql.dll_Qt_SQL_driver_${QT_FULL_VERSION}_MinGW_8.1.0_64-bit.zip"
-        )
-    else()
-        message(WARNING "Unsupported Windows compiler for prebuilt MySQL Qt driver")
-  endif()
-elseif(UNIX)
-  set(QMYSQL_PREBUILT_DRIVER_URL
-      "https://github.com/thecodemonkey86/qt_mysql_driver/files/6388052/libqsqlmysql.so_Qt_SQL_driver_${QT_FULL_VERSION}_gcc64.zip"
-)
-else()
-  message(WARNING "Unsupported platform for prebuilt MySQL Qt driver")
-endif()
+# Fetch qsqlmysql.dll plugin matching the detected Qt version #####
+# Qt doesn't ship a QMYSQL driver in binary form (licensing), so on platforms whose own
+# Qt doesn't bundle one either, thecodemonkey86/qt_mysql_driver publishes prebuilt drivers
+# per Qt release: https://github.com/thecodemonkey86/qt_mysql_driver/releases
+# Each release is tagged "qmysql_<version>", but the actual zip files are attached as
+# old-style "github.com/OWNER/REPO/files/<id>/<name>" links embedded in the release's
+# markdown body rather than as proper GitHub release assets, so their URLs are per-file
+# random IDs that can't be constructed from the version number alone. We resolve the
+# right one at configure time via the GitHub API instead of hardcoding an ID (which is
+# what silently pinned every previous version of this script to a single fixed Qt 5.15.2
+# build forever).
+option(NOGGIT_FETCH_QMYSQL_DRIVER "Download a prebuilt QMYSQL Qt SQL driver plugin matching the detected Qt version" ON)
 
 set(QMYSQL_PREBUILT_DIR "${CMAKE_BINARY_DIR}/_deps/qt_mysql_driver")
 set(QMYSQL_EXTRACT_DIR "${QMYSQL_PREBUILT_DIR}/sqldrivers")
-set(QMYSQL_ZIP "${QMYSQL_PREBUILT_DIR}/qsqlmysql_prebuilt.zip")
+file(MAKE_DIRECTORY "${QMYSQL_EXTRACT_DIR}")
 
-# Download zip only if not already present
-if(NOT EXISTS "${QMYSQL_ZIP}")
-  message(STATUS "qt MySQL DRIVER zip not found. Downloading qmysql from : ${QMYSQL_PREBUILT_DRIVER_URL}")
-
-  file(DOWNLOAD
-      ${QMYSQL_PREBUILT_DRIVER_URL}
-      ${QMYSQL_ZIP}
-      # SHOW_PROGRESS
-      STATUS DOWNLOAD_STATUS
-      TLS_VERIFY ON
-  )
-
-  list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
-  if(NOT STATUS_CODE EQUAL 0)
-      message(WARNING "Failed to download prebuilt qt MySQL driver: ${DOWNLOAD_STATUS}")
-      message(WARNING "You can manually download it from https://github.com/thecodemonkey86/qt_mysql_driver/releases or build qsqlmysql.dll yourself from QT source.")
-  endif()
+if(NOT NOGGIT_FETCH_QMYSQL_DRIVER)
+  message(STATUS "Skipping QMYSQL Qt SQL driver download (NOGGIT_FETCH_QMYSQL_DRIVER=OFF)")
+elseif(CMAKE_VERSION VERSION_LESS 3.19)
+  message(WARNING "CMake >= 3.19 is required to look up the QMYSQL Qt SQL driver automatically "
+                   "(needs string(JSON)); skipping. Pass -DNOGGIT_FETCH_QMYSQL_DRIVER=OFF to silence this.")
 else()
-    message(STATUS "Prebuilt MySQL Qt driver zip already exists, skipping download")
+  # Qt5Core_VERSION is populated by FIND_PACKAGE(Qt5 ...) above. This used to shell out to
+  # "${Qt5Core_DIR}/../../../bin/qmake -query QT_VERSION" instead, which only resolves on
+  # the Windows Qt installer's directory layout (<Qt-root>/<version>/<compiler>/lib/cmake/Qt5Core,
+  # three levels above bin/qmake.exe); on Linux package layouts it silently produced an empty
+  # version, which broke every URL built from it.
+  set(QT_FULL_VERSION "${Qt5Core_VERSION}")
+  message(STATUS "Qt full version: ${QT_FULL_VERSION}")
+
+  # Suffix to match against each release asset's file name for our platform/compiler.
+  if(WIN32)
+    if(MSVC)
+      set(QMYSQL_ASSET_MATCH "MSVC2019_64-bit\\.zip")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU") # MinGW
+      set(QMYSQL_ASSET_MATCH "MinGW_8.1.0_64-bit\\.zip")
+    else()
+      message(WARNING "Unsupported Windows compiler for prebuilt MySQL Qt driver")
+    endif()
+  elseif(UNIX AND NOT APPLE)
+    set(QMYSQL_ASSET_MATCH "gcc64\\.zip")
+  else()
+    message(WARNING "Unsupported platform for prebuilt MySQL Qt driver")
+  endif()
+
+  if(QMYSQL_ASSET_MATCH)
+    set(QMYSQL_ZIP "${QMYSQL_PREBUILT_DIR}/qsqlmysql_prebuilt_${QT_FULL_VERSION}.zip")
+
+    # Download zip only if not already present -- also skips the API lookup below on repeat configures.
+    if(NOT EXISTS "${QMYSQL_ZIP}")
+      set(QMYSQL_RELEASE_TAG "qmysql_${QT_FULL_VERSION}")
+      set(QMYSQL_RELEASE_JSON "${QMYSQL_PREBUILT_DIR}/release_${QT_FULL_VERSION}.json")
+
+      message(STATUS "Looking up QMYSQL driver release '${QMYSQL_RELEASE_TAG}' via the GitHub API")
+      file(DOWNLOAD
+          "https://api.github.com/repos/thecodemonkey86/qt_mysql_driver/releases/tags/${QMYSQL_RELEASE_TAG}"
+          "${QMYSQL_RELEASE_JSON}"
+          STATUS QMYSQL_API_STATUS
+          TLS_VERIFY ON
+          HTTPHEADER "User-Agent: noggit-cobalt-cmake"
+          HTTPHEADER "Accept: application/vnd.github+json"
+      )
+      list(GET QMYSQL_API_STATUS 0 QMYSQL_API_STATUS_CODE)
+
+      set(QMYSQL_PREBUILT_DRIVER_URL "")
+      if(QMYSQL_API_STATUS_CODE EQUAL 0)
+        file(READ "${QMYSQL_RELEASE_JSON}" QMYSQL_RELEASE_JSON_CONTENT)
+        string(JSON QMYSQL_ASSET_COUNT ERROR_VARIABLE QMYSQL_JSON_ERR LENGTH "${QMYSQL_RELEASE_JSON_CONTENT}" assets)
+        if(NOT QMYSQL_JSON_ERR AND QMYSQL_ASSET_COUNT GREATER 0)
+          math(EXPR QMYSQL_ASSET_LAST "${QMYSQL_ASSET_COUNT} - 1")
+          foreach(QMYSQL_ASSET_IDX RANGE ${QMYSQL_ASSET_LAST})
+            string(JSON QMYSQL_ASSET_NAME GET "${QMYSQL_RELEASE_JSON_CONTENT}" assets ${QMYSQL_ASSET_IDX} name)
+            if(QMYSQL_ASSET_NAME MATCHES "${QMYSQL_ASSET_MATCH}$")
+              string(JSON QMYSQL_PREBUILT_DRIVER_URL GET "${QMYSQL_RELEASE_JSON_CONTENT}" assets ${QMYSQL_ASSET_IDX} browser_download_url)
+              break()
+            endif()
+          endforeach()
+        endif()
+      endif()
+      file(REMOVE "${QMYSQL_RELEASE_JSON}")
+
+      if(QMYSQL_PREBUILT_DRIVER_URL)
+        message(STATUS "qt MySQL DRIVER zip not found. Downloading qmysql from : ${QMYSQL_PREBUILT_DRIVER_URL}")
+        file(DOWNLOAD
+            "${QMYSQL_PREBUILT_DRIVER_URL}"
+            "${QMYSQL_ZIP}"
+            STATUS QMYSQL_DOWNLOAD_STATUS
+            TLS_VERIFY ON
+            HTTPHEADER "User-Agent: noggit-cobalt-cmake"
+        )
+        list(GET QMYSQL_DOWNLOAD_STATUS 0 QMYSQL_DOWNLOAD_STATUS_CODE)
+        if(NOT QMYSQL_DOWNLOAD_STATUS_CODE EQUAL 0)
+          file(REMOVE "${QMYSQL_ZIP}")
+        endif()
+      endif()
+
+      if(NOT EXISTS "${QMYSQL_ZIP}")
+        message(WARNING "Could not fetch a prebuilt qt MySQL driver for Qt ${QT_FULL_VERSION} (no "
+                         "'${QMYSQL_RELEASE_TAG}' release, no matching asset for this platform, or the "
+                         "GitHub API was unreachable/rate-limited -- it's unauthenticated and capped at "
+                         "60 requests/hour per IP). Check "
+                         "https://github.com/thecodemonkey86/qt_mysql_driver/releases for the closest "
+                         "available version, or build qsqlmysql yourself from Qt source. This only "
+                         "disables the QMYSQL Sql driver; the rest of noggit still builds fine. Distros "
+                         "whose own Qt5 package already ships a QMYSQL driver (e.g. Arch/CachyOS's "
+                         "qt5-base, which just needs mariadb-libs installed) don't need this step at all "
+                         "-- pass -DNOGGIT_FETCH_QMYSQL_DRIVER=OFF to skip it.")
+      endif()
+    else()
+      message(STATUS "Prebuilt MySQL Qt driver zip already exists, skipping download")
+    endif()
+
+    # Extract zip, if we actually got one
+    if(EXISTS "${QMYSQL_ZIP}")
+      file(SIZE "${QMYSQL_ZIP}" QMYSQL_ZIP_SIZE)
+      if(QMYSQL_ZIP_SIZE GREATER 0)
+        file(ARCHIVE_EXTRACT
+            INPUT "${QMYSQL_ZIP}"
+            DESTINATION "${QMYSQL_EXTRACT_DIR}"
+        )
+        message(STATUS "Extracted prebuilt MySQL Qt driver at ${QMYSQL_EXTRACT_DIR}. Deps will be deployed after build.")
+      else()
+        file(REMOVE "${QMYSQL_ZIP}")
+      endif()
+    endif()
+  endif()
 endif()
 
-# Extract zip
-file(ARCHIVE_EXTRACT
-    INPUT ${QMYSQL_ZIP}
-    DESTINATION ${QMYSQL_EXTRACT_DIR}
-)
-message(STATUS "Extracted prebuilt MySQL Qt driver at ${QMYSQL_EXTRACT_DIR}. Deps will be deploeyd after build.")
-
-  
 # deploy
 add_custom_command(TARGET noggit POST_BUILD
 COMMAND ${CMAKE_COMMAND} -E copy_directory
