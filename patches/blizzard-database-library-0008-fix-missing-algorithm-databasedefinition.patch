@@ -1,0 +1,25 @@
+From eec9998e7f564242a0cef38a8992a734b7a44cee Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 11 Sep 2026 13:09:14 +0000
+Subject: [PATCH 6/6] Fix missing <algorithm> include in DatabaseDefinition.cpp
+
+Uses std::find without including <algorithm>, which isn't guaranteed
+to be pulled in transitively by anything else this file includes.
+---
+ src/DatabaseDefinition.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/DatabaseDefinition.cpp b/src/DatabaseDefinition.cpp
+index c9e3e46..5723f45 100644
+--- a/src/DatabaseDefinition.cpp
++++ b/src/DatabaseDefinition.cpp
+@@ -1,5 +1,6 @@
+ #include <DatabaseDefinition.h>
+ 
++#include <algorithm>
+ #include <cassert>
+ 
+ namespace BlizzardDatabaseLib
+-- 
+2.43.0
+

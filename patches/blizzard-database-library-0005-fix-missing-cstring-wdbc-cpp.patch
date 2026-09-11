@@ -1,0 +1,28 @@
+From 485d0bbdf9e91642e6ed02863be1086ba7ea069a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 11 Sep 2026 13:09:14 +0000
+Subject: [PATCH 3/6] Fix missing <cstring> include in WDBCTableReader.cpp
+
+Relies on the memcpy/memset family without including <cstring>,
+which isn't guaranteed to be pulled in transitively by anything else
+this file includes.
+---
+ src/readers/wdbc/WDBCTableReader.cpp | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/readers/wdbc/WDBCTableReader.cpp b/src/readers/wdbc/WDBCTableReader.cpp
+index 424ff73..b88c7ee 100644
+--- a/src/readers/wdbc/WDBCTableReader.cpp
++++ b/src/readers/wdbc/WDBCTableReader.cpp
+@@ -1,6 +1,8 @@
+ #include <readers/wdbc/WDBCTableReader.h>
+ #include <extensions/MemoryExtensions.h>
+ 
++#include <cstring>
++
+ #include <cassert>
+ 
+ namespace BlizzardDatabaseLib {
+-- 
+2.43.0
+

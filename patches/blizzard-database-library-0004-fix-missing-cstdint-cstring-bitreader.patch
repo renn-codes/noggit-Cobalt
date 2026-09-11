@@ -1,0 +1,29 @@
+From bea22498d9f360291c7134b8d80824f3cd85195d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 11 Sep 2026 13:09:02 +0000
+Subject: [PATCH 2/6] Fix missing <cstdint>/<cstring> includes in BitReader.cpp
+
+sizeof(uint32_t) is used directly, and the file also relies on the
+memcpy/memset family, neither of which is guaranteed available
+without <cstdint>/<cstring> respectively. Fails under GCC/libstdc++
+with "'uint32_t' was not declared in this scope".
+---
+ src/stream/BitReader.cpp | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/stream/BitReader.cpp b/src/stream/BitReader.cpp
+index adfe963..9bc89ac 100644
+--- a/src/stream/BitReader.cpp
++++ b/src/stream/BitReader.cpp
+@@ -1,5 +1,8 @@
+ #include <stream/BitReader.h>
+ 
++#include <cstdint>
++#include <cstring>
++
+ namespace BlizzardDatabaseLib {
+     namespace Stream {
+ 
+-- 
+2.43.0
+
