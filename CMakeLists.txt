@@ -114,6 +114,47 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(FastNoise2)
 
 FIND_PACKAGE(Sol2 REQUIRED)
+
+# The pinned tswow/sol2 fork (see cmake/FindSol2.cmake) has a broken
+# sol::optional<T&>::emplace(): it's a variadic template whose body calls
+# this->construct(...), a member that only exists on the primary (non-reference)
+# optional<T> specialization, not this one -- upstream ThePhD/sol2 doesn't even
+# have a variadic emplace() here, just a single-argument one that rebinds the
+# reference directly. Nothing in noggit or sol2 itself ever calls this overload,
+# but GCC 13+'s -Wtemplate-body validates template bodies via two-phase lookup
+# even without instantiation and rejects it outright:
+#   error: 'class sol::optional<T&>' has no member named 'construct' [-Wtemplate-body]
+# Replace it with upstream's actual implementation of the same method. This is a
+# no-op once the fork fixes it or FindSol2.cmake points at a commit that does.
+if(DEFINED sol2_SOURCE_DIR)
+  set(_sol2_optional_impl "${sol2_SOURCE_DIR}/include/sol/optional_implementation.hpp")
+  if(EXISTS "${_sol2_optional_impl}")
+    file(READ "${_sol2_optional_impl}" _sol2_optional_impl_contents)
+    # Anchored on "noexcept" (unlike optional<T>::emplace()'s otherwise-identical body,
+    # which has no noexcept) so this only ever matches the broken reference overload.
+    # Includes the preceding "template <class... Args>" line too: upstream's fix isn't a
+    # template at all (it takes T& directly), so leaving that line would just swap one
+    # instance of dead code (a template parameter the body never uses) for another.
+    set(_sol2_broken_emplace [=[		template <class... Args>
+		T& emplace(Args&&... args) noexcept {
+			static_assert(std::is_constructible<T, Args&&...>::value, "T must be constructible with Args");
+
+			*this = nullopt;
+			this->construct(std::forward<Args>(args)...);
+		}]=])
+    set(_sol2_fixed_emplace [=[		T& emplace(T& arg) noexcept {
+			*this = nullopt;
+			m_value = &arg;
+			return **this;
+		}]=])
+    if(_sol2_optional_impl_contents MATCHES [=[T& emplace\(Args&&\.\.\. args\) noexcept]=])
+      message(STATUS "Patching broken sol::optional<T&>::emplace() in sol2/optional_implementation.hpp")
+      string(REPLACE "${_sol2_broken_emplace}" "${_sol2_fixed_emplace}" _sol2_optional_impl_contents "${_sol2_optional_impl_contents}")
+      file(WRITE "${_sol2_optional_impl}" "${_sol2_optional_impl_contents}")
+    endif()
+  endif()
+endif()
+
 FIND_PACKAGE(Qt5 COMPONENTS Widgets OpenGLExtensions Gui Network Xml Multimedia Sql REQUIRED)
 
 ADD_SUBDIRECTORY("${EXTERNAL_SOURCE_DIR}/qt-color-widgets")
