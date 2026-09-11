@@ -8,6 +8,7 @@
 #include <glm/vec4.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <typeinfo>
 #include <variant>

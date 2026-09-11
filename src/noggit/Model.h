@@ -15,6 +15,7 @@
 
 #include <glm/mat4x4.hpp>
 
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>

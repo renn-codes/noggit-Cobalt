@@ -4,6 +4,7 @@
 #include <noggit/ModelHeaders.h>
 #include <math/interpolation.hpp>
 #include <cassert>
+#include <cstdint>
 #include <map>
 #include <vector>
 #include <memory>
