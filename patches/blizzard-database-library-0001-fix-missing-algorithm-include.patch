@@ -1,0 +1,31 @@
+From 87a53a94de9bd45e29f6166179ca2f21fc6f1778 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 11 Sep 2026 09:33:49 +0000
+Subject: [PATCH] Fix missing <algorithm> include in VectorExtensions.h
+
+Vector::IndexOf() uses std::find/std::distance but only included
+<type_traits> and <vector>. This compiles on MSVC because <vector>
+transitively drags in <algorithm> there, but fails on GCC/libstdc++
+(e.g. GCC 13 on Linux) with:
+
+  error: no matching function for call to 'find(...)'
+
+since only an unrelated std::find overload from <streambuf_iterator.h>
+(pulled in via <fstream>) is visible without an explicit include.
+---
+ include/extensions/VectorExtensions.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/extensions/VectorExtensions.h b/include/extensions/VectorExtensions.h
+index 79db094..2e178bb 100644
+--- a/include/extensions/VectorExtensions.h
++++ b/include/extensions/VectorExtensions.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <algorithm>
+ #include <type_traits>
+ #include <vector>
+ 
+-- 
+2.43.0
+
