@@ -37,6 +37,15 @@
 
 #if defined(__TURBOC__) || defined(_MSC_VER) || defined(_WIN32)
 #  include <io.h>
+#else
+   /* read/write/close/lseek used by gzlib.c/gzread.c/gzwrite.c are declared
+    * here, not guaranteed via <fcntl.h> alone on every libc (newer glibc in
+    * particular, with only the legacy _POSIX_SOURCE feature-test macro
+    * defined above rather than _POSIX_C_SOURCE) -- without it, GCC 14's
+    * default of treating implicit function declarations as a hard error
+    * (rather than a suppressible warning) breaks the build outright.
+    */
+#  include <unistd.h>
 #endif
 
 #if defined(_WIN32) || defined(__CYGWIN__)
