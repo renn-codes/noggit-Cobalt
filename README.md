@@ -27,6 +27,26 @@ Further following libraries are required for MySQL GUID Storage builds:
 * MySQLCPPConn
 See below for detailed instructions
 
+## Getting the source ##
+This repository uses several git submodules (build-time CMake helpers,
+the `blizzard-archive-library`/`blizzard-database-library` dependencies,
+and the `dist/` definitions/listfile/themes data). Clone with
+`--recurse-submodules` so they're checked out immediately:
+
+```bash
+git clone --recurse-submodules https://github.com/renn-codes/noggit-Cobalt.git
+cd noggit-Cobalt
+```
+
+If you already cloned without that flag, initialize them afterwards:
+
+```bash
+git submodule update --init --recursive
+```
+
+Skipping this step means the submodule directories are left empty and
+CMake will fail immediately (`cmake/cmake_function.cmake` not found).
+
 ## Windows ##
 Text in `<brackets>` below are up to your choice but shall be replaced
 with the same choice every time the same text is contained.
@@ -122,7 +142,15 @@ tested, and nobody has built distributable packages in years.
 
 # SUBMODULES #
 
-To pull the latest version of submodules use the following command at the root directory.
+To check out the submodules for the first time (e.g. after cloning without
+`--recurse-submodules`), run this at the root directory:
+
+```bash
+git submodule update --init --recursive
+```
+
+To instead move each submodule forward to the latest commit on its tracked
+branch (not just the commit currently pinned by this repo), use:
 
 ```bash
 git submodule update --recursive --remote
