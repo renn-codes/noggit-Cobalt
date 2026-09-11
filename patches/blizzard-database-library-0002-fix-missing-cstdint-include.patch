@@ -1,0 +1,33 @@
+From 7828168cc7e39f44b3057f820cb5c678fe08abc4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 11 Sep 2026 11:57:22 +0000
+Subject: [PATCH] Fix missing <cstdint> include in WDBCTableReader.h
+
+uint32_t is used throughout this header (member fields, a return type,
+casts) but only <type_traits>/<fstream>/<vector>/<map>/<sstream> etc.
+are included, none of which reliably pulls in <cstdint> transitively
+under GCC/libstdc++ (e.g. GCC 13 on Linux). Fails with:
+
+  error: 'uint32_t' does not name a type
+
+which then cascades into unrelated-looking errors further down the
+same header (e.g. "has no member named 'Insert'", "expected ')'
+before 'fieldCount'") once the malformed declarations this produces
+get used later in the file -- all from the same missing include.
+---
+ include/readers/wdbc/WDBCTableReader.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/readers/wdbc/WDBCTableReader.h b/include/readers/wdbc/WDBCTableReader.h
+index 418f875..24a9926 100644
+--- a/include/readers/wdbc/WDBCTableReader.h
++++ b/include/readers/wdbc/WDBCTableReader.h
+@@ -1,4 +1,5 @@
+ #pragma once
++#include <cstdint>
+ #include <type_traits>
+ #include <fstream>
+ #include <istream>
+-- 
+2.43.0
+
