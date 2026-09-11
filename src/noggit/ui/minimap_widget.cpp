@@ -5,6 +5,8 @@
 #include <noggit/ui/minimap_widget.hpp>
 #include <noggit/World.h>
 
+#include <cstring>
+
 #include <QApplication>
 #include <QPainter>
 #include <QPaintEvent>

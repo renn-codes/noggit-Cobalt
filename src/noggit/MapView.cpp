@@ -139,6 +139,7 @@
 #include <vector>
 #include <random>
 #include <format>
+#include <stdexcept>
 #include <unordered_set>
 
 
@@ -3595,7 +3596,7 @@ void MapView::activeTool(editing_mode newTool)
         }
     }
 
-    throw std::exception{ std::format("Tried to call MapView::activeTool with invalid editing_mode `{}`!", static_cast<int>(newTool)).c_str() };
+    throw std::runtime_error{ std::format("Tried to call MapView::activeTool with invalid editing_mode `{}`!", static_cast<int>(newTool)) };
 }
 
 Noggit::Ui::Tools::ViewToolbar::Ui::ViewToolbar* MapView::getLeftSecondaryViewToolbar()

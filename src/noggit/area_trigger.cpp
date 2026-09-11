@@ -7,6 +7,7 @@
 #include <glm/gtx/transform.hpp>
 
 #include <format>
+#include <stdexcept>
 
 namespace Noggit
 {
@@ -24,7 +25,7 @@ namespace Noggit
       }
     }
 
-    throw std::exception{ std::format("There is no area trigger with id {}", id).c_str() };
+    throw std::runtime_error{ std::format("There is no area trigger with id {}", id) };
   }
 
   area_trigger::area_trigger(DBCFile::Record& record)
@@ -73,7 +74,7 @@ namespace Noggit
       }
       else
       {
-        throw std::exception("Unknown area trigger type encountered!");
+        throw std::runtime_error("Unknown area trigger type encountered!");
       }
       }, trigger);
   }
@@ -93,7 +94,7 @@ namespace Noggit
       }
       else
       {
-        throw std::exception("Unknown area trigger type encountered!");
+        throw std::runtime_error("Unknown area trigger type encountered!");
       }
       }, trigger);
   }
@@ -113,7 +114,7 @@ namespace Noggit
       }
       else
       {
-        throw std::exception("Unknown area trigger type encountered!");
+        throw std::runtime_error("Unknown area trigger type encountered!");
       }
       }, trigger);
   }

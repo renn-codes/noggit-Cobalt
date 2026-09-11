@@ -194,6 +194,8 @@ namespace Noggit::Ui::Windows
     buildMenu();
   }
 
+  NoggitWindow::~NoggitWindow() = default;
+
   void NoggitWindow::check_uid_then_enter_map
       (glm::vec3 pos, math::degrees camera_pitch, math::degrees camera_yaw, bool from_bookmark
       )
