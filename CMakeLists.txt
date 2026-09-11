@@ -427,6 +427,20 @@ add_library(blizzard-archive-library STATIC ${archive_sources} ${archive_headers
 add_library(blizzard-database-library STATIC ${database_sources} ${database_headers})
 target_link_libraries(blizzard-archive-library StormLib CascLib)
 
+# Some StormLib forks (e.g. current upstream ladislav-zezula/StormLib) renamed their
+# non-Windows GetLastError()/SetLastError() compatibility shims to SErrGetLastError()/
+# SErrSetLastError(), which breaks the link if the system/AUR-provided StormLib is one
+# of those. Detect this and, if needed, compile in a shim providing the plain names.
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES ${STORM_LIBRARIES})
+set(CMAKE_REQUIRED_INCLUDES ${STORM_INCLUDE_DIR})
+check_cxx_source_compiles("
+#include <StormLib.h>
+int main() { GetLastError(); SetLastError(0); return 0; }
+" NOGGIT_STORMLIB_HAS_GETLASTERROR)
+unset(CMAKE_REQUIRED_LIBRARIES)
+unset(CMAKE_REQUIRED_INCLUDES)
+
 if (UNIX)
   FIND_PACKAGE(BZip2 REQUIRED)
 
@@ -468,6 +482,12 @@ TARGET_LINK_LIBRARIES (noggit
   blizzard-database-library
   rapidfuzz::rapidfuzz
 )
+
+if (NOT NOGGIT_STORMLIB_HAS_GETLASTERROR)
+  message(STATUS "Linked StormLib does not provide GetLastError()/SetLastError() (likely renamed to SErrGetLastError()/SErrSetLastError() upstream) - adding compatibility shim")
+  target_sources(noggit PRIVATE src/util/StormLibCompat.cpp)
+endif()
+
 include(ExternalProject)
 
 
