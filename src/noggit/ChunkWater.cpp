@@ -9,6 +9,7 @@
 #include <util/sExtendableArray.hpp>
 
 #include <algorithm>
+#include <cstring>
 
 ChunkWater::ChunkWater(MapChunk* chunk, TileWater* water_tile, float x, float z, bool use_mclq_green_lava)
   : xbase(x)

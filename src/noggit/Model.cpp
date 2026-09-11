@@ -11,6 +11,7 @@
 #include <noggit/TextureManager.h> // TextureManager, Texture
 
 #include <cassert>
+#include <cstring>
 #include <glm/gtx/euler_angles.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <map>

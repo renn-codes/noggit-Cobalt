@@ -3,7 +3,7 @@
 #include <noggit/MinimapRenderSettings.hpp>
 #include <noggit/World.h>
 
-#include <external/QtImGui/QtImGui.h>
+#include <external/qtimgui/QtImGui.h>
 
 #include <QMouseEvent>
 #include <QSettings>

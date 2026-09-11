@@ -1041,7 +1041,7 @@ namespace Noggit
             {
                 // Stable by record id so the legend, newly loaded tiles and
                 // undo/redo-driven renderer refreshes all agree.
-                float partr, partg, partb;
+                double partr, partg, partb;
                 float const id = static_cast<float>(effect.ID);
                 float r = std::abs(modf(sin(id * 12.9898f + 78.233f) * 43758.5453f, &partr));
                 float g = std::abs(modf(sin(id * 11.5591f + 70.233f) * 43569.5451f, &partg));

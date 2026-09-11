@@ -62,6 +62,7 @@ namespace Noggit::Ui::Windows
     public:
       NoggitWindow(std::shared_ptr<Noggit::Application::NoggitApplicationConfiguration> application,
           std::shared_ptr<Noggit::Project::NoggitProject> project);
+      ~NoggitWindow() override;
 
       void promptExit(QCloseEvent* event);
       void promptUidFixFailure();

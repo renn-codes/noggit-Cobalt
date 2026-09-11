@@ -10,18 +10,20 @@
 #include <noggit/ui/windows/EditorWindows/ZoneMusicPickerWindow.h>
 #include <noggit/ui/ZoneIDBrowser.h>
 
+#include <cmath>
+
 #include <QDialog>
 #include <QMessageBox>
-#include <QtWidgets/QCheckBox.h>
-#include <QtWidgets/QComboBox.h>
+#include <QtWidgets/QCheckBox>
+#include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QFormLayout>
 #include <QtWidgets/qgroupbox.h>
-#include <QtWidgets/QLabel.h>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSlider>
-#include <QtWidgets/QSpinBox.h>
+#include <QtWidgets/QSpinBox>
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QVBoxLayout>
 
