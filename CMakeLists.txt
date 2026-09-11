@@ -189,24 +189,38 @@ ELSE()
   collect_files(noggit_root_sources src/noggit TRUE "*.cpp" "")
 ENDIF()
 
-# The blizzard-database-library submodule (gitlab.com/T1ti/blizzard-database-library,
-# no push access from this repo) is missing #include <algorithm> in VectorExtensions.h,
-# which Vector::IndexOf() needs for std::find/std::distance. This only compiles on MSVC
-# because <vector> happens to drag in <algorithm> transitively there; GCC/libstdc++
-# (e.g. building on Linux) fails with "no matching function for call to 'find(...)'".
-# Patch it in place at configure time so a plain `git submodule update` is enough to get
-# a working build; this is a no-op once upstream fixes it or the pinned commit moves past it.
-set(_bdl_vecext "${CMAKE_SOURCE_DIR}/src/external/blizzard-database-library/include/extensions/VectorExtensions.h")
-if(EXISTS "${_bdl_vecext}")
-  file(READ "${_bdl_vecext}" _bdl_vecext_contents)
-  if(NOT _bdl_vecext_contents MATCHES "#include <algorithm>")
-    message(STATUS "Patching missing #include <algorithm> in blizzard-database-library/VectorExtensions.h")
-    string(REPLACE "#pragma once" "#pragma once\n#include <algorithm>" _bdl_vecext_contents "${_bdl_vecext_contents}")
-    file(WRITE "${_bdl_vecext}" "${_bdl_vecext_contents}")
+# The blizzard-database-library submodule (gitlab.com/T1ti/blizzard-database-library, no
+# push access from this repo) is missing a few standard-library includes that only compile
+# on MSVC because some other header happens to drag them in transitively there; GCC/libstdc++
+# (e.g. building on Linux) doesn't guarantee that and fails outright. Patch them in place at
+# configure time so a plain `git submodule update` is enough to get a working build; this is
+# a no-op once upstream fixes them or the pinned commit moves past the fix.
+function(noggit_patch_missing_include relative_path include_line)
+  set(_target "${CMAKE_SOURCE_DIR}/${relative_path}")
+  if(EXISTS "${_target}")
+    file(READ "${_target}" _contents)
+    if(NOT _contents MATCHES "${include_line}")
+      message(STATUS "Patching missing ${include_line} in ${relative_path}")
+      string(REPLACE "#pragma once" "#pragma once\n${include_line}" _contents "${_contents}")
+      file(WRITE "${_target}" "${_contents}")
+    endif()
   endif()
-  unset(_bdl_vecext_contents)
-endif()
-unset(_bdl_vecext)
+endfunction()
+
+# VectorExtensions.h: Vector::IndexOf() needs <algorithm> for std::find/std::distance;
+# fails with "no matching function for call to 'find(...)'" without it.
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/include/extensions/VectorExtensions.h"
+  "#include <algorithm>"
+)
+# WDBCTableReader.h: uses uint32_t (member fields, a return type, casts) without <cstdint>;
+# fails with "'uint32_t' does not name a type", which then cascades into unrelated-looking
+# errors ("has no member named 'Insert'", "expected ')' before 'fieldCount'") wherever the
+# malformed declarations this produces get used later in the same header.
+noggit_patch_missing_include(
+  "src/external/blizzard-database-library/include/readers/wdbc/WDBCTableReader.h"
+  "#include <cstdint>"
+)
 
 collect_files(png_blp_sources src/external/PNG2BLP TRUE "*.c;*.cpp;" "")
 collect_files(imguizmo_sources src/external/imguizmo FALSE "*.c;*.cpp;" "")
