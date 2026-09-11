@@ -6,6 +6,7 @@
 #include <noggit/WMOInstance.h>
 #include <opengl/scoped.hpp>
 #include <atomic>
+#include <cstdint>
 #include <limits>
 #include <mutex>
 #include <unordered_map>

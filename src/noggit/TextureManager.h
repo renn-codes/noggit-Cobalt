@@ -9,6 +9,7 @@
 #include <opengl/shader.hpp>
 
 #include <QtGui/QPixmap>
+#include <cstdint>
 #include <optional>
 #include <map>
 #include <unordered_map>
